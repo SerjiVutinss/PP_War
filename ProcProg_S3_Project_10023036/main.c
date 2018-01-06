@@ -40,8 +40,9 @@ typedef struct Player {
 
 int numPlayers;
 int numDecks;
+int deckSize;
 
-int numCurrentTurn;
+int numCurrentRound;
 
 Player gamePlayers[MAX_NUM_PLAYERS];
 Card gameDeck[MAX_GAME_DECK_SIZE];
@@ -115,27 +116,16 @@ void main() {
 
 // setup a new game
 void setupGame() {
-	// get the number of players
-	/*int validNumPlayers = 0;
-	do {
-		printf("\nHow many players: ");
-		scanf(" %d", &numPlayers);
 
-		if (numPlayers >= MIN_NUM_PLAYERS && numPlayers <= MAX_NUM_PLAYERS) {
-			validNumPlayers = 1;
-		}
-	} while (validNumPlayers == 0);*/
-
-
-	//printf("\n\n%d Players", numPlayers);
-
-	// add the correct amount of players to the game
+	// (TODO: rewrite this function?)add the correct amount of players to the game
 	addPlayersToGame();
 
 	// calculate the number of decks to use - must always be at least 4 suits
 	printf("\n\n!!!!!!!!!  %d !!!!!!!!!\n", numDecks);
 	numDecks = (int)ceil((double)numPlayers / 4);
 	printf("\n%d deck(s) will be used", numDecks);
+	deckSize = numDecks * CARDS_PER_DECK;
+
 	// shuffle the deck
 
 	// TODO: check if game is loading
@@ -144,7 +134,7 @@ void setupGame() {
 
 		// populate the gameDeck array with the cards, 
 		// using the suits and number of decks - deck.c
-		buildGameDeck(gameDeck, gameSuits, numDecks);
+		buildGameDeck();
 		printf("\nGame Deck built!\n");
 
 		// deal the cards
@@ -162,39 +152,62 @@ void setupGame() {
 void startGame() {
 
 	Player currentPlayer;
-	// each game consists of turns and scoring, followed by a final round(?)
-	for (numCurrentTurn = 1; numCurrentTurn <= NUM_ROUNDS; numCurrentTurn++) {
-		printf("\n\nTurn %d Starting", numCurrentTurn);
-		// loop through players array
-		for (int i = 0; i < numPlayers; i++) {
-			printf("\nPlayer %d's turn", i + 1);
-			currentPlayer = gamePlayers[i];
-			//puts(currentPlayer.playerName);
+	// each round consists of turns and scoring, followed by a final round(?)
 
-			// print the player's cards and ask for a selection
-			for (int j = 0; j < NUM_ROUNDS; j++) {
-				if (currentPlayer.cards[j].isPlayed < 1) {
-					printf("\n#%d - %s", j + 1, currentPlayer.cards[j].fullName);
-				}
-			}
+	int currentPlayerIndex = 0;
+	int playerCardIndex = 0;
+
+	// ROUNDS
+	for (numCurrentRound = 1; numCurrentRound <= NUM_ROUNDS; numCurrentRound++) {
+		printf("\n\nROUND %d STARTING", numCurrentRound);
+
+		//// ROUND TURNS
+		// each player takes a turn in order
+		for (currentPlayerIndex = 0; currentPlayerIndex < numPlayers; currentPlayerIndex++) {
+			currentPlayer = gamePlayers[currentPlayerIndex];
 
 			//TODO:  verify card has not already been played
 			int selectedCardNumber = 0;
+			int isValidCard = -1;
 
-			// select the card by its index + 1
-			printf("\nSelect a card(1 -13): ");
-			scanf("%d", &selectedCardNumber);
+			Card c;
 
-			
-			printf("\nPlayer %d played the %s\n", i + 1, currentPlayer.cards[selectedCardNumber - 1].fullName);
-			currentPlayer.cards[selectedCardNumber - 1].isPlayed = 1;
-			roundCards[i] = currentPlayer.cards[selectedCardNumber - 1];
+			// loop until a valid card has been selected, i.e. index in range and isPlayed == 0
+			do {
+				printf("\n\nPlayer %d's turn", currentPlayerIndex + 1);
+				// for each card the player is holding
+				for (playerCardIndex = 0; playerCardIndex < NUM_ROUNDS; playerCardIndex++) {
+					// only show cards which have not yet been played
+					if (currentPlayer.cards[playerCardIndex].isPlayed == 0) {
+						// show the cards
+						printf("\n# %d - %s (%d)", playerCardIndex + 1, currentPlayer.cards[playerCardIndex].fullName, currentPlayer.cards[playerCardIndex].isPlayed);
+					}
+				}
+
+				// ask the player to select a card
+				printf("\nSelect a card(1 -13): ");
+				scanf("%d", &selectedCardNumber);
+
+				// card has already been played
+				if (gamePlayers[currentPlayerIndex].cards[selectedCardNumber - 1].isPlayed > 0) {
+					printf("\nNot a valid selection"); // LOOP
+				}
+				// play the card
+				else {
+					printf("\nPlayer %d played the %s\n", currentPlayerIndex + 1, gamePlayers[currentPlayerIndex].cards[selectedCardNumber - 1].fullName);
+					// mark the player's card as played
+					gamePlayers[currentPlayerIndex].cards[selectedCardNumber - 1].isPlayed = 1;
+					// and add the card to the round cards
+					roundCards[currentPlayerIndex] = gamePlayers[currentPlayerIndex].cards[selectedCardNumber - 1];
+					isValidCard = 1; // EXIT DO WHILE
+				}
+
+			} while (isValidCard == -1);
 		}
+		//// END ROUND TURNS
+		printf("\n\nROUND %d Ending", numCurrentRound);
 
-		printf("\n\nTurn %d Ending", numCurrentTurn);
-		// end of player turn
-
-		// calculate the score
+		//// CALCULATE END ROUND SCORE
 		int highestUniqueScore = 0;
 		int winnerIndex = -1;
 		for (int i = 0; i < numPlayers; i++) {
@@ -210,32 +223,35 @@ void startGame() {
 				winnerIndex = -1;
 			}
 		}
+		//// END CALCULATE END ROUND SCORE
 
+		// show the cards on the board and who played them
+		printf("\n");
+		for (int i = 0; i < numPlayers; i++) {
+			printf("\n\tPlayer %d - %s", currentPlayerIndex, roundCards[i].fullName);
+		}
+
+		// calculate the score
 		if (winnerIndex > -1) {
-			printf("\nWinner is: Player %d", winnerIndex + 1);
-			printf("\n\tHighest Unique score: %d", highestUniqueScore);
+			printf("\n\n\tHighest Unique score: %d", highestUniqueScore);
+			printf("\n\tRound WINNER is: Player %d", winnerIndex + 1);
+			// increment the winning player's score
 			gamePlayers[winnerIndex].score += highestUniqueScore;
 
 		}
 
-		displayScore();
-		//printf("\nRound score - ");
+		// show the total score of each player
+		printf("\n\nScores");
+		for (int i = 0; i < numPlayers; i++) {
+			printf("\n\tPlayer %d: %d", i + 1, gamePlayers[i].score);
+		}
 	}
 
 }
 
 void displayScore() {
 
-
-
-	for (int i = 0; i < numPlayers; i++) {
-		printf("\n%s", roundCards[i].fullName);
-	}
-
-	printf("\n\nScores");
-	for (int i = 0; i < numPlayers; i++) {
-		printf("\n\tPlayer %d: %d", i + 1, gamePlayers[i].score);
-	}
+	
 }
 
 void addPlayersToGame() {
@@ -349,6 +365,7 @@ void buildGameDeck() {
 				}
 				// set the cardId - also its location in the gameDeck
 				c.cardId = cardId;
+				c.isPlayed = 0;
 
 				// create the full name string
 				strcpy(c.fullName, c.cardName);
