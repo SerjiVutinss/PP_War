@@ -15,6 +15,9 @@
 //#define MAX_GAME_DECK_SIZE CARDS_PER_DECK * GAME_DECK_MAX_DECKS
 #define MAX_GAME_DECK_SIZE 156
 
+#define MIN_CARD_VALUE 2
+#define MAX_CARD_VALUE 14
+
 typedef struct Suit {
 	int id;
 	char name[10];
@@ -37,6 +40,14 @@ typedef struct Player {
 	Card cards[NUM_ROUNDS];
 } Player; // represents a player, with an id, name, score and hand of cards
 
+typedef struct ResultSet {
+	// Result set for each value of card
+	int value; // result set for this card value
+
+	Card lastMatchedCard;
+	int lastMatchedCardHolderIndex;
+	int hits;
+} ResultSet;
 
 int numPlayers;
 int numDecks;
@@ -49,13 +60,19 @@ Card gameDeck[MAX_GAME_DECK_SIZE];
 Card roundCards[MAX_NUM_PLAYERS];
 Suit gameSuits[4];
 
+ResultSet cardValueHits[MAX_CARD_VALUE];
+int highestScore;
+
 //// Prototypes
 // Game
 void setupGame(); // set up cards and players
 void startGame(); // begins the first turn
 void addPlayersToGame();
 
+
+void calculateRoundScores();
 void displayScore();
+void showHighestScore();
 void printDeck();
 
 // Cards
@@ -180,7 +197,7 @@ void startGame() {
 					// only show cards which have not yet been played
 					if (currentPlayer.cards[playerCardIndex].isPlayed == 0) {
 						// show the cards
-						printf("\n# %d - %s (%d)", playerCardIndex + 1, currentPlayer.cards[playerCardIndex].fullName, currentPlayer.cards[playerCardIndex].isPlayed);
+						printf("\n# %d - %s (%d)", playerCardIndex + 1, currentPlayer.cards[playerCardIndex].fullName, currentPlayer.cards[playerCardIndex].value);
 					}
 				}
 
@@ -203,55 +220,200 @@ void startGame() {
 				}
 
 			} while (isValidCard == -1);
+			printf("\n\nROUND %d ENDING", numCurrentRound);
 		}
 		//// END ROUND TURNS
-		printf("\n\nROUND %d Ending", numCurrentRound);
 
 		//// CALCULATE END ROUND SCORE
-		int highestUniqueScore = 0;
-		int winnerIndex = -1;
-		for (int i = 0; i < numPlayers; i++) {
-			Card c = roundCards[i];
 
-			// if it qualifies as the highest score
-			if (c.value > highestUniqueScore) {
-				highestUniqueScore = c.value;
-				winnerIndex = i;
-			}
-			else if (c.value == highestUniqueScore) {
-				highestUniqueScore = 0;
-				winnerIndex = -1;
-			}
-		}
-		//// END CALCULATE END ROUND SCORE
+		//int highestUniqueScore = 0; // highest unique score this round
+		//int winnerIndex = -1; // if >= 0, then the index of the round winner in the gamePlayers array
+		//
 
-		// show the cards on the board and who played them
-		printf("\n");
-		for (int i = 0; i < numPlayers; i++) {
-			printf("\n\tPlayer %d - %s", currentPlayerIndex, roundCards[i].fullName);
-		}
+		//// set up the cardValueHits array and fill with zeroes,
+		//// each element represents a card value, values represent numHits
+		//// only array elements 2-14 are used based on MIN_CARD_VALUE and MAX_CARD_VALUE constants
+		//int cardValueHitIndex; 
+		//int cardValue = MIN_CARD_VALUE;
+		//for (cardValueHitIndex = MIN_CARD_VALUE; cardValueHitIndex <= MAX_CARD_VALUE; cardValueHitIndex++) {
+		//	cardValueHits[cardValueHitIndex].hits = 0;
+		//	cardValueHits[cardValueHitIndex].value = cardValue;
+		//	cardValue += 1;
 
-		// calculate the score
-		if (winnerIndex > -1) {
-			printf("\n\n\tHighest Unique score: %d", highestUniqueScore);
-			printf("\n\tRound WINNER is: Player %d", winnerIndex + 1);
-			// increment the winning player's score
-			gamePlayers[winnerIndex].score += highestUniqueScore;
+		//}
 
-		}
+		//int roundCardIndex = 0;
+		//for (roundCardIndex = 0; roundCardIndex < numPlayers; roundCardIndex++) {
+		//	// increment the hit counter for each card value found
+		//	cardValueHits[roundCards[roundCardIndex].value].hits += 1;
+		//	// round card indx is the same as game player index
+		//	cardValueHits[roundCards[roundCardIndex].value].lastMatchedCardHolderIndex = roundCardIndex;
+		//}
 
-		// show the total score of each player
-		printf("\n\nScores");
-		for (int i = 0; i < numPlayers; i++) {
-			printf("\n\tPlayer %d: %d", i + 1, gamePlayers[i].score);
+		//int lastMatched = -1;
+		//// go back through the result list and keep the highest value with 1 hit, also its lastMatched
+		//for (int i = 0; i <= 14; i++) {
+		//	if (cardValueHits[i].hits == 1 && i > highestUniqueScore) {
+		//		//if (hitArray[i] == 1 && i > highestUniqueScore) {
+		//		highestUniqueScore = i;
+		//		lastMatched = cardValueHits[i].lastMatchedCardHolderIndex;
+		//	}
+		//}
+
+		//winnerIndex = lastMatched;
+
+		////// END CALCULATE END ROUND SCORE
+
+		//// show the cards on the board and who played them
+		//printf("\n");
+		//for (int i = 0; i < numPlayers; i++) {
+		//	printf("\n\tPlayer %d - %s (%d)", i + 1, roundCards[i].fullName, roundCards[i].value);
+		//}
+
+		//// calculate the score
+		//if (winnerIndex > -1) {
+		//	printf("\n\n\tHighest Unique score: %d", highestUniqueScore);
+		//	printf("\n\tRound WINNER is: Player %d", winnerIndex + 1);
+		//	// increment the winning player's score
+		//	gamePlayers[winnerIndex].score += highestUniqueScore;
+		//}
+		//else {
+		//	printf("\nNo winner this round!\n");
+		//}
+
+		//// show the total score of each player
+		//printf("\n\nRound Scores");
+		//for (int i = 0; i < numPlayers; i++) {
+		//	if (i == winnerIndex) {
+		//		// if it's the winner, show the new points
+		//		printf("\n\tPlayer %d: %d (+%d)", i + 1, gamePlayers[i].score, highestUniqueScore);
+		//	}
+		//	else {
+		//		printf("\n\tPlayer %d: %d", i + 1, gamePlayers[i].score);
+		//	}
+		//}
+
+		calculateRoundScores();
+
+		printf("\n\nROUND FINISHED");
+		printf("\n\nSAVE, EXIT, ETC");
+	}
+
+	printf("\n\nGAME OVER");
+
+	showHighestScore();
+
+}
+
+void calculateRoundScores() {
+	int highestUniqueScore = 0; // highest unique score this round
+	int winnerIndex = -1; // if >= 0, then the index of the round winner in the gamePlayers array
+
+
+						  // set up the cardValueHits array and fill with zeroes,
+						  // each element represents a card value, values represent numHits
+						  // only array elements 2-14 are used based on MIN_CARD_VALUE and MAX_CARD_VALUE constants
+	int cardValueHitIndex;
+	int cardValue = MIN_CARD_VALUE;
+	for (cardValueHitIndex = MIN_CARD_VALUE; cardValueHitIndex <= MAX_CARD_VALUE; cardValueHitIndex++) {
+		cardValueHits[cardValueHitIndex].hits = 0;
+		cardValueHits[cardValueHitIndex].value = cardValue;
+		cardValue += 1;
+
+	}
+
+	int roundCardIndex = 0;
+	for (roundCardIndex = 0; roundCardIndex < numPlayers; roundCardIndex++) {
+		// increment the hit counter for each card value found
+		cardValueHits[roundCards[roundCardIndex].value].hits += 1;
+		// round card indx is the same as game player index
+		cardValueHits[roundCards[roundCardIndex].value].lastMatchedCardHolderIndex = roundCardIndex;
+	}
+
+	int lastMatched = -1;
+	// go back through the result list and keep the highest value with 1 hit, also its lastMatched
+	for (int i = 0; i <= 14; i++) {
+		if (cardValueHits[i].hits == 1 && i > highestUniqueScore) {
+			//if (hitArray[i] == 1 && i > highestUniqueScore) {
+			highestUniqueScore = i;
+			lastMatched = cardValueHits[i].lastMatchedCardHolderIndex;
 		}
 	}
 
+	winnerIndex = lastMatched;
+
+	//// END CALCULATE END ROUND SCORE
+
+	// show the cards on the board and who played them
+	printf("\n");
+	for (int i = 0; i < numPlayers; i++) {
+		printf("\n\tPlayer %d - %s (%d)", i + 1, roundCards[i].fullName, roundCards[i].value);
+	}
+
+	// calculate the score
+	if (winnerIndex > -1) {
+		printf("\n\n\tHighest Unique score: %d", highestUniqueScore);
+		printf("\n\tRound WINNER is: Player %d", winnerIndex + 1);
+		// increment the winning player's score
+		gamePlayers[winnerIndex].score += highestUniqueScore;
+	}
+	else {
+		printf("\nNo winner this round!\n");
+	}
+
+	// show the total score of each player
+	printf("\n\nRound Scores");
+	for (int i = 0; i < numPlayers; i++) {
+		if (i == winnerIndex) {
+			// if it's the winner, show the new points
+			printf("\n\tPlayer %d: %d (+%d)", i + 1, gamePlayers[i].score, highestUniqueScore);
+		}
+		else {
+			printf("\n\tPlayer %d: %d", i + 1, gamePlayers[i].score);
+		}
+	}
+}
+
+void showHighestScore() {
+	// show the highest score
+	int highestScore = 0;
+
+	int highestScorePlayerIndexes[MAX_NUM_PLAYERS];
+
+	for (int i = 0; i < numPlayers; i++) {
+		highestScorePlayerIndexes[i] = -1;
+		if (gamePlayers[i].score > highestScore) {
+			highestScore = gamePlayers[i].score;
+		}
+	}
+
+	int numLeaders = 0;
+	printf("\n\nHighest Score:");
+	for (int i = 0; i < numPlayers; i++) {
+
+		if (gamePlayers[i].score == highestScore) {
+			//printf("\n\tPlayer %d: %d", i + 1, gamePlayers[i].score);
+			highestScore = gamePlayers[i].score;
+			highestScorePlayerIndexes[i] = i;
+			numLeaders += 1;
+		}
+		else {
+			highestScorePlayerIndexes[i] = -1;
+		}
+	}
+
+	for (int i = 0; i < numLeaders; i++) {
+
+		// if an index matches
+		if (i == highestScorePlayerIndexes[i]) {
+			printf("\nPlayer %d is the winner with %d points\n\n", i + 1, gamePlayers[i].score);
+		}
+	}
 }
 
 void displayScore() {
 
-	
+
 }
 
 void addPlayersToGame() {
@@ -337,9 +499,9 @@ void buildGameDeck() {
 	// game deck is built with multiple decks
 	for (numCurrentDeck = 1; numCurrentDeck < numDecks + 1; numCurrentDeck++) {
 		// loop through each suit in the suit list
-		for (suitId = 0; suitId < 4; suitId++) {
+		for (suitId = 0; suitId < NUM_SUITS; suitId++) {
 			// add a new card, 1 - 13 to the gameDeck array
-			for (cardValue = 2; cardValue <= 14; cardValue++) {
+			for (cardValue = MIN_CARD_VALUE; cardValue <= MAX_CARD_VALUE; cardValue++) {
 				// give the card its suit
 				c.suit = gameSuits[suitId];
 				// and give the card its value
